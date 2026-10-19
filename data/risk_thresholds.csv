@@ -1,0 +1,6 @@
+risk,level_1_watch,level_2_high,level_3_severe,unit,when,source
+heavy rain,44,89,150,mm per day,all year,"Bangladesh Meteorological Department rainfall categories (44-88 heavy, 89+ very heavy)"
+heat,36,38,40,deg C daily maximum,all year,"BMD heat wave categories (36 mild, 38 moderate, 40 severe)"
+strong wind,62,75,89,km/h gust,all year,"Beaufort scale (gale 62+, storm 89+)"
+dry spell,15,25,40,days without 5 mm rain,Nov to May,project rule
+high tide,0.15,0.1,0.0,m below FFWC danger level,live mode with fresh FFWC data,FFWC danger levels
