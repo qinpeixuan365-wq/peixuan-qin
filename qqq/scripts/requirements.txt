@@ -1,2 +1,0 @@
-numpy>=1.24      # backtest.py
-shapely>=2.0     # build_basemap.py
