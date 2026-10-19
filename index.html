@@ -1374,6 +1374,7 @@ function ctxForLLM() {
       varieties: pl.rows.map(r => `${r.v.name} (${r.v.dur} days, ${r.v.tolEn}): transplant ${toStr(r.T)}, flowering ${toStr(r.F)}, harvest ${toStr(r.H)}, risk ${({ g: 'flowers before the window closes', a: 'late reproductive stage needs pond water', r: 'flowering likely meets salty water' })[r.risk]}${r.irrDays ? `, ${r.irrDays} irrigation days after the window closes needing about ${Math.round(r.m3)} m3 for ${pl.area} decimals` : ''}`)
     } : 'n/a',
     ffwc_official: ffwcFresh(c.today, c.mode) ? FFWC.stations.map(st => `${st.name} (${st.riverEn}): ${FFWC.dates.map((d, k) => st.wl[k] != null ? `${d.slice(5)} ${st.wl[k]} m${k < FFWC.nObs ? ' observed' : ' forecast'}` : '').filter(Boolean).join(', ')}; danger level ${st.danger} m`) : 'FFWC snapshot is not for this date',
+    boro_safe_dates: (() => { const pl = c.plan, sd = pl ? safeDates(pl, pl.cl) : null; return sd ? `safe schedule from the early end of the 80% range: sow by ${toStr(sd.sow)}, transplant by ${toStr(sd.trans)}` : 'n/a'; })(),
     pond_budget: state.pond ? state.pond.rows.map(r => `${r.c.en}: about ${Math.round(r.dec)} decimals with ${Math.round(state.pond.vol)} m3 of pond water`) : [],
     next_7_days_rain_mm_and_et0_mm: (() => { const n = next7(c.today); return n ? `${Math.round(n.rain)} mm rain, ${Math.round(n.et)} mm evapotranspiration` : 'n/a'; })(),
     next_14_days: c.days.filter(d => !d.missing).map(d => `${toStr(d.i)}: max ${r1(d.tx)}C, min ${r1(d.tn)}C, rain ${r1(d.p || 0)} mm${d.gu != null ? `, gust ${Math.round(d.gu)} km/h` : ''}${d.pr != null ? `, ${Math.round(d.pr * 100)}% of ensemble members >=44 mm` : ''}${d.risks.length ? '; risks: ' + d.risks.map(r => RISK[r.type].en + ' ' + LV_EN[r.lv]).join(', ') : ''}`),
@@ -1798,6 +1799,17 @@ function readPlanInputs() {
   const sowV = $('#plSow').value, age = clampI(parseInt($('#plAge').value, 10) || 40, 20, 70), area = Math.max(1, parseFloat($('#plArea').value) || 33), eff = clampI(parseFloat($('#plEff').value) || 70, 20, 100);
   return { sow: sowV ? toIdx(sowV) : null, age, area, eff };
 }
+/* 求稳日期：按八成区间的早端倒推，甜水提前用完时开花也赶得及 */
+function safeDates(pl, cl) {
+  if (!cl || cl.C10 == null || cl.C == null || cl.C10 >= cl.C) return null;
+  const sow = cl.C10 + SALT_LAG - (VARIETIES[0].dur - 30);
+  return { sow, trans: sow + pl.age };
+}
+function safeTxt(pl, cl, ctx) {
+  const sd = safeDates(pl, cl);
+  if (!sd || (ctx.mode === 'live' && sd.sow < ctx.today)) return '';
+  return ` 想更稳妥，就按八成区间的早端（${fmtMD(cl.C10)}）倒推：<strong>${fmtMD(sd.sow)}</strong> 前落谷、<strong>${fmtMD(sd.trans)}</strong> 前插秧，这样就算甜水提前用完，开花也赶得及。`;
+}
 function renderPlan(fromInputs) {
   const ctx = state.ctx; if (!ctx) return;
   if (fromInputs) { state.planUser = readPlanInputs(); ctx.plan = computePlan(ctx, state.planUser); }
@@ -1808,7 +1820,7 @@ function renderPlan(fromInputs) {
   if (!cl) rec.textContent = '暂时没有甜水窗口预测，无法排期。';
   else if (cl.none) rec.innerHTML = `今季来水预计整季都在中位流量以上（跌破概率约 ${Math.round(cl.pCross * 100)}%），咸水风险较低：博罗稻按常规时间（12 月中下旬插秧）即可。`;
   else if (cl.known) rec.innerHTML = `甜水窗口已于 <strong>${fmtMD(C)}</strong> 关闭。下表显示各品种从现在起还要多少池塘水。`;
-  else if (r && !pl.lateFor67) rec.innerHTML = `按今年的预测，甜水窗口约 <strong>${fmtMD(C)}</strong> 关闭（八成区间 ${fmtMD(cl.C10)} 到 ${fmtMD(cl.C90)}），咸水约 ${fmtMD(C + SALT_LAG)} 明显上溯。BRRI dhan67 最晚 <strong>${fmtMD(r.sowLatest)}</strong> 落谷、<strong>${fmtMD(r.transLatest)}</strong> 插秧，抽穗开花就能赶在咸水上来之前。`;
+  else if (r && !pl.lateFor67) rec.innerHTML = `按今年的预测，甜水窗口约 <strong>${fmtMD(C)}</strong> 关闭（八成区间 ${fmtMD(cl.C10)} 到 ${fmtMD(cl.C90)}），咸水约 ${fmtMD(C + SALT_LAG)} 明显上溯。BRRI dhan67 最晚 <strong>${fmtMD(r.sowLatest)}</strong> 落谷、<strong>${fmtMD(r.transLatest)}</strong> 插秧，抽穗开花就能赶在咸水上来之前。${safeTxt(pl, cl, ctx)}`;
   else rec.innerHTML = `已经来不及让 BRRI dhan67 在咸水上溯（约 ${fmtMD(C + SALT_LAG)}）前开花：建议改选耐盐性更强的 <strong>BRRI dhan99</strong>，并按下表备好池塘甜水。`;
   $('#plNote').textContent = `生育期：BRRI dhan67 约 145 天，dhan97 约 152 天，dhan99 约 154 天（BRRI、CGIAR）。秧龄一般 40 到 45 天；开花约在收获前 30 天，生殖期约 35 天。来水跌破后咸水上溯到田间需要一段时间，这里按 ${SALT_LAG} 天估计，试点时用实测盐度标定；咸水上溯以后的灌溉按全部改用池塘水估算。研究表明提早插秧能减轻生殖期的盐害；BRRI 试验中 12 月 15 日到 31 日插秧产量最高，2 月 1 日最低。实际请以当地农技员建议为准。`;
   // 甘特图
